@@ -1,0 +1,39 @@
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]  # Ensures a consistent version
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set Up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir telebot pymongo aiohttp python-telegram-bot pyTelegramBotAPI certifi
+
+      - name: Increase Process Priority
+        run: sudo renice -n -10 -p $$  # Gives the script higher CPU priority
+
+      - name: Set Execute Permissions
+        run: chmod +x * && chmod +x LEGEND
+
+      - name: Debug Environment
+        run: |
+          python --version
+          pip list
+          free -m
+          df -h
+          top -b -n 1 | head -20  # Check CPU load
+
+      - name: Run Application
+        run: python LEGEND.py
+        
