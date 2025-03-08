@@ -10,61 +10,29 @@ jobs:
     steps:
       - name: Install SSH and Set Password
         run: |
-          sudo apt update && sudo apt install -y openssh-server curl jq
+          sudo apt update && sudo apt install -y openssh-server curl
           sudo service ssh start
 
           # Set a password for the 'runner' user
-          echo "runner:12345" | sudo chpasswd
+          echo "runner:MySecurePass123" | sudo chpasswd
 
           # Allow password authentication in SSH
           sudo sed -i 's/^#PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
 
-      - name: Install Ngrok
+      - name: Start Ngrok Tunnel for SSH
         run: |
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-          sudo apt update && sudo apt install -y ngrok
-
-          # Verify Ngrok installation
-          ngrok version || { echo "❌ Ngrok failed to install!"; exit 1; }
-
-      - name: Start Ngrok Tunnel for SSH
-        run: |
-          # Authenticate Ngrok
-          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          sudo apt update && sudo apt install ngrok -y
 
           # Start Ngrok tunnel for SSH
-          nohup ngrok tcp 22 --log=stdout > ngrok.log 2>&1 &
-          sleep 15  # Wait longer to ensure Ngrok starts
-
-          # Check if Ngrok is running
-          if ! pgrep -x "ngrok" > /dev/null; then
-            echo "❌ Ngrok is not running!"
-            cat ngrok.log
-            exit 1
-          fi
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          nohup ngrok tcp 22 --log=stdout > ngrok.log &
 
       - name: Display SSH Connection Info
-        run: |
-          echo "Fetching Ngrok tunnel information..."
-          NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url')
-
-          if [[ "$NGROK_URL" == "null" || -z "$NGROK_URL" ]]; then
-            echo "❌ Ngrok failed to start or no tunnel found!"
-            echo "Ngrok Logs:"
-            cat ngrok.log
-            exit 1
-          fi
-
-          # Extract hostname and port
-          HOST=$(echo "$NGROK_URL" | awk -F[/:] '{print $4}')
-          PORT=$(echo "$NGROK_URL" | awk -F[/:] '{print $5}')
-
-          echo "✅ SSH Access: ssh -o StrictHostKeyChecking=no -p $PORT runner@$HOST"
-          echo "Username: runner"
-          echo "Password: 12345"
+        run: sleep 10 && curl -s http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'
 
       - name: Keep Runner Alive
         run: sleep infinity
